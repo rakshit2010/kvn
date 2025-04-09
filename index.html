@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <title>Invoice Generator</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background: #f8f8f8; padding: 10px; }
+        .container { max-width: 350px; margin: auto; background: white; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); }
+        .form-group { display: flex; flex-direction: column; margin-bottom: 8px; text-align: left; }
+        select, input, button { padding: 6px; font-size: 14px; width: 100%; }
+        button { cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; margin-top: 5px; padding: 8px; }
+        button:hover { background: #0056b3; }
+        .invoice { display: none; width: 240px; padding: 10px; margin: auto; background: white; font-size: 12px; border: 1px dashed black; }
+        .invoice-header { text-align: center; border-bottom: 1px dashed black; padding-bottom: 5px; margin-bottom: 5px; }
+        .invoice-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .invoice-table th, .invoice-table td { padding: 5px; text-align: left; border-bottom: 1px dashed black; }
+        .total-row { font-weight: bold; }
+        #billNumberContainer {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+    }
+
+    @media print {
+        #billNumberContainer {
+            position: absolute;
+            top: 0px;
+            left: 10px;
+            
+        }
+    }
+
+        @media print {
+            body * { visibility: hidden; }
+            .invoice, .invoice * { visibility: visible; }
+            .invoice { position: absolute; left: 0; top: 0;  width: 96%; height: auto; }
+
+
+            .print-btn { display: none; }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+   
+
+
+
+
+</head>
+<body>
+
+    <div class="container">
+        <h2>Invoice Generator</h2>
+
+       
+
+        <h3>Items</h3>
+        <table id="itemsTable" class="invoice-table">
+            <tr>
+                <th>Item</th>
+                <th>₹</th>
+                <th>Qty</th>
+                <th>Action</th>
+            </tr>
+        </table>
+<div id="dropbox-button">
+        <div class="form-group">
+            <label>Select Product:</label>
+            <select id="productSelect" onchange="updatePrice()">
+                <option value="" disabled selected>Select an item</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Price:</label>
+            <input type="number" id="price" readonly>
+        </div>
+
+        <div class="form-group">
+            <label>Quantity:</label>
+            <input type="number" id="quantity" value="1">
+        </div>
+</div>
+        <button type="button" onclick="addItem()">Add Item</button>
+        <button type="button" onclick="generateInvoice()">Generate Invoice</button>
+
+        <div class="invoice" id="invoice">
+            <div class="invoice-header">
+                
+
+                <h2>Jalaram Clothes</h2>
+                <p>G-21 Sumeru City Mall,Near Sudama <br> Chowk Opp. Krishna Township, Mota <br> Varachha,Surat <br></p>
+                <p> 8320827878 <br> </p>
+              <p> Date: <span id="invoiceDate"></span></p>
+                <div id="billNumberContainer">
+    <p><strong>Bill No:</strong> <span id="billNumber"></span></p>
+</div>
+
+            </div>
+           
+            <table class="invoice-table">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>₹</th>
+                        <th>Qty</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody id="invoiceItems"></tbody>
+                <tfoot>
+                
+                <tr id="discont"><td colspan="3">Discount</td>
+                <td><INPut type="number" id="discount" style="border: none;font-size: 12px;"></INPut></td></tr>
+                    <tr class="total-row">
+                        <td colspan="3"><strong>Grand Total</strong></td>
+                        <td>₹<span id="grandTotal">0</span></td>
+                    </tr>
+                   
+                </tfoot>
+            </table>
+            <h3>NO RETURN NO EXCHANGE </h3>
+            <p>Thank you for your purchase! <br>
+            Visit Again</P>
+            <button class="print-btn" onclick="printInvoice()">Print Bill</button>
+        </div>
+    </div>
+
+    <script>
+        let items = [];
+        const productPrices = {
+            "Top-150": 150,
+            "Top-200": 200,
+            "Top-250": 250,
+            "Top-300": 300,
+            "Top-350": 350,
+            "Top-400": 400,
+            "Top-450": 450,
+            "Top-500": 500,
+            "Bottom-150": 150,
+            "Bottom-200": 200,
+            "Bottom-250": 250,
+            "Bottom-300": 300,
+            "Bottom-350": 350,
+            "Bottom-400": 400,
+            "Bottom-450": 450,
+            "Bottom-500": 500,
+            "Bottom-550": 550,
+            "One-piece": 500,
+            "Combo 200/-1 3 pieces": 500,
+            "Combo 250/-1 3 pieces": 600,
+            "Combo 300/-1 3 pieces": 700,
+            "Combo 400/-1 3 pieces": 1000
+        };
+        
+        
+        
+        
+
+        function populateProductDropdown() {
+            let productSelect = document.getElementById("productSelect");
+            for (let product in productPrices) {
+                let option = document.createElement("option");
+                option.value = product;
+                option.textContent = `${product} - ₹${productPrices[product]}`;
+                productSelect.appendChild(option);
+            }
+        }
+
+        function updatePrice() {
+            let itemName = document.getElementById("productSelect").value;
+            document.getElementById("price").value = productPrices[itemName];
+        }
+
+        function addItem() {
+            let itemName = document.getElementById("productSelect").value;
+            let price = productPrices[itemName];
+            let quantity = parseInt(document.getElementById("quantity").value);
+
+            if (!itemName || price <= 0 || quantity <= 0) {
+                alert("Please select a valid item and quantity!");
+                return;
+            }
+
+            items.push({ name: itemName, price, quantity });
+            updateItemsTable();
+        }
+
+        function removeItem(index) {
+        items.splice(index, 1); // Remove the selected item from the array
+        updateItemsTable(); // Refresh the table
+    }
+
+    function updateItemsTable() {
+        let table = document.getElementById("itemsTable");
+        table.innerHTML = `<tr><th>Item</th><th>₹</th><th>Qty</th><th>Action</th></tr>`;
+        items.forEach((item, index) => {
+            table.innerHTML += `
+                <tr>
+                    <td>${item.name}</td>
+                    <td>₹${item.price}</td>
+                    <td>${item.quantity}</td>
+                    <td><button onclick="removeItem(${index})">❌</button></td>
+                </tr>
+            `;
+        });
+        
+    }
+        function generateBillNumber() {
+            
+    let billNo = localStorage.getItem("billNumber"); // Get last saved bill number
+
+    if (!billNo || isNaN(billNo)) {
+        billNo = 1; // Start from 1 if no bill exists
+    } else {
+        billNo = parseInt(billNo); // Ensure it is a number
+    }
+
+    document.getElementById("billNumber").innerText = billNo; // Display bill number
+}
+
+
+    // Run function when the page loads
+    
+        function generateInvoice() {
+            document.getElementById("invoice").style.display = "block";
+           
+            document.getElementById("invoiceDate").innerText = new Date().toLocaleDateString("en-GB", { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+
+            let total = 0;
+            let invoiceTable = document.getElementById("invoiceItems");
+            invoiceTable.innerHTML = "";
+
+            items.forEach(item => {
+                let row = `<tr><td>${item.name}</td><td>₹${item.price}</td><td>${item.quantity}</td><td>₹${item.price * item.quantity}</td></tr>`;
+                invoiceTable.innerHTML += row;
+                total += item.price * item.quantity;
+               
+
+            });
+            let discount = parseInt(document.getElementById("discount").value) || 0;
+            if (isNaN(discount)) {
+                discount = 0; // Default to 0 if not a number
+            }
+           
+                   
+                   
+            total -= discount; // Apply discount
+            // Apply discount
+
+            generateBillNumber();
+
+
+            document.getElementById("grandTotal").innerText = total;
+            
+        }
+            function updateBillNumber() {
+    let billNo = localStorage.getItem("billNumber"); // Get last saved bill number
+
+    if (!billNo || isNaN(billNo)) {
+        billNo = 1; // Start from 1 if no bill exists
+    } else {
+        billNo = parseInt(billNo) + 1; // Increment bill number
+    }
+
+    localStorage.setItem("billNumber", billNo); // Save updated bill number
+    document.getElementById("billNumber").innerText = billNo; // Update UI with new bill number
+}
+
+
+        window.onload = function () {
+    generateBillNumber();
+};
+  function printInvoice() {
+    
+                generateInvoice();
+
+
+
+            
+            updateBillNumber() ;
+            if(document.getElementById("discount").value==0 || document.getElementById("discount").value==undefined){
+                document.getElementById("discont").style.display="none";
+                
+            }
+            window.print();
+            window.location.reload(); // Reload the page after printing
+            
+           
+            
+            
+        }
+
+        document.addEventListener("DOMContentLoaded", populateProductDropdown);
+    </script>
+
+</body>
+</html>
